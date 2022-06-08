@@ -40,13 +40,14 @@ class CartPoint(Cartesian):
         return smaller_x <= self.x <= bigger_x and smaller_y <= self.y <= bigger_y
 
     def is_intersect_point(self, line1, line2):
-        if self.z == 0:
-            print("Error: Parallel/Same")
-            return 0
-        else:
-            l1i = self.in_segment(line1)
-            l2i = self.in_segment(line2)
-            return l1i and l2i
+        l1i = self.in_segment(line1)
+        l2i = self.in_segment(line2)
+        if l1i and l2i:
+            if self.z == 0:
+                print("Error: Parallel/Same")
+                return 0
+            return 1
+        return 0
 
     def print_self(self):
         print("The coordinates of the point are:")
@@ -105,7 +106,10 @@ class Line:
         return cross_product(self.points[0].get_cart(), self.points[1].get_cart(), getLine=True)
 
     def __init__(self, p1, p2):
-        self.points = [Point(p1[0], p1[1]), Point(p2[0], p2[1])]
+        if not isinstance(p1, Point):
+            p1 = Point(p1[0], p1[1])
+            p2 = Point(p2[0], p2[1])
+        self.points = [p1, p2]
         self.color = "White"
         self.Cart = self.create_cartisian()
 
@@ -138,6 +142,45 @@ class Ray(Line):
 
     def change_points(self, changeEnd, ynew=None, xnew=None):
         self.points[changeEnd].set_xy(xnew, ynew)
+
+    def draw(self):
+        drawPoints = [point.get_tup() for point in self.points]
+        pygame.draw.lines(screen, self.color, False, drawPoints)
+
+
+class Block:
+    def make_lines(self):
+        lines = []
+        for i in range(len(self.points)):
+            if i == len(self.points) - 1:
+                lines.append(Line(self.points[i], self.points[0]))
+            else:
+                lines.append(Line(self.points[i], self.points[i + 1]))
+        return lines
+
+    def __init__(self, points):
+        if len(points) == 2:
+            p_tl = points[0]
+            p_br = points[1]
+            self.points = [Point(p_tl[0], p_tl[1]), Point(p_br[0], p_tl[1]),
+                           Point(p_br[0], p_br[1]), Point(p_tl[0], p_br[1])]
+        elif len(points) > 2:
+            self.points = [Point(p[0], p[1]) for p in points]
+        self.lines = self.make_lines()
+
+    def draw(self):
+        for block_line in self.lines:
+            block_line.draw()
+
+    def check_intersections(self, ray):
+        numOfInter = 0
+        for block_line in self.lines:
+            if line_intersect(screen, ray.get_cart(), block_line.get_cart()):
+                block_line.change_color("Blue")
+                numOfInter += 1
+            else:
+                block_line.change_color("White")
+        return numOfInter
 
 
 def gcd(a, b):
@@ -177,12 +220,13 @@ clock = pygame.time.Clock()
 running = True
 
 lightRay = Ray((0, 400), (1200, 400))
-lineArray = [
-    Line((600, 100), (900, 100)),
-    Line((900, 100), (900, 700)),
-    Line((900, 700), (600, 700)),
-    Line((600, 100), (600, 700)),
-]
+block1 = Block([(600, 100), (900, 700)])
+block2 = Block([
+    (300, 200), (400, 180),
+    (450, 670), (300, 540),
+    (200, 330)
+])
+blocks = [block1, block2]
 
 while running:
     for event in pygame.event.get():
@@ -199,18 +243,15 @@ while running:
             lightRay.point_movement(0)
     screen.fill("Black")
     lightRay.ray_update()
-    lightRay.draw()
-    numOfIntersections = 0
-    for line in lineArray:
-        if line_intersect(screen, lightRay.get_cart(), line.get_cart()):
+
+    for block in blocks:
+        if block.check_intersections(lightRay):
             lightRay.change_color("Red")
-            line.change_color("Blue")
-            numOfIntersections += 1
         else:
-            line.change_color("White")
-        line.draw()
-    if numOfIntersections == 0:
-        lightRay.change_color("White")
+            lightRay.change_color("White")
+
+        block.draw()
+    lightRay.draw()
     pygame.display.flip()
     clock.tick(60)
 
